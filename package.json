@@ -1,0 +1,17 @@
+{
+  "name": "book-server",
+  "version": "1.0.0",
+  "description": "Server for book-barn project",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Dan Ochs",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "pg-promise": "^10.3.5"
+  }
+}
