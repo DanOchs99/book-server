@@ -29,7 +29,6 @@ app.get("/", (req, res) => {
 
 // detail route - return one book
 app.get("/detail/:bookId", (req, res) => {
-    //console.log(req.params.bookId);
     db.one("SELECT id, title, genre, publisher, year, imageurl FROM books WHERE id = $1;", [req.params.bookId])
     .then(results => {
         res.json(results);
@@ -41,9 +40,24 @@ app.get("/detail/:bookId", (req, res) => {
 });
 
 // delete route - delete a book
-app.post("/delete/:bookId", (req,res) => {
+app.post("/delete", (req,res) => {
     db.none("DELETE FROM books WHERE id = $1", [req.body.book])
     res.end();
+})
+
+// insert/update route - add a new book or edit an existing book
+app.post("/edit/:bookId", (req,res) => {
+    if (req.params.bookId==0) {
+        // this is an INSERT request
+        db.none("INSERT INTO books (title, genre, publisher, year, imageurl) VALUES ($1, $2, $3, $4, $5);", [req.body.book.title, req.body.book.genre, req.body.book.publisher, req.body.book.year, req.body.book.imageurl])
+        res.end();
+    }
+    else
+    {
+        // this is an UPDATE request
+        db.none("UPDATE books SET title=$1, genre=$2, publisher=$3, year=$4, imageurl=$5 WHERE id=$6;", [req.body.book.title, req.body.book.genre, req.body.book.publisher, req.body.book.year, req.body.book.imageurl, req.params.bookId])
+        res.end();
+    }
 })
 
 app.listen(PORT, () => {
