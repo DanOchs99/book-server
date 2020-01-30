@@ -13,6 +13,7 @@ pgp.pg.defaults.ssl = true;
 const db = pgp(DATABASE_URL);
 
 app.use(cors());
+app.use(express.json());
 
 // root route - returns all the books
 app.get("/", (req, res) => {
@@ -38,6 +39,12 @@ app.get("/detail/:bookId", (req, res) => {
         res.end()
     });
 });
+
+// delete route - delete a book
+app.post("/delete/:bookId", (req,res) => {
+    db.none("DELETE FROM books WHERE id = $1", [req.body.book])
+    res.end();
+})
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
