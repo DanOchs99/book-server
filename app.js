@@ -1,12 +1,14 @@
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 
 require("dotenv").config();
 
 const PORT = process.env.PORT || 8080;
 const DATABASE_URL = process.env.DATABASE_URL;
 const JWT_SECRET = process.env.JWT_SECRET;
+const SALT_ROUNDS = 10;
 
 const app = express();
 
@@ -44,24 +46,108 @@ const authenticate = (req, res, next) => {
 
 // root route - user login
 app.post("/", (req,res) => {
-    // expects a user object { name: "username", password: "password" } in the body
-    const u = { name: req.body.name }
-    const token = jwt.sign(u, process.env.JWT_SECRET, {
-        expiresIn: 60 * 60 * 24 // expires in 24 hours
-     });
-    // send back a token
-    res.json(token);
+    // expects a user object { username: "username", password: "password" } in the body
+    const username = req.body.username;
+    const password = req.body.password;
+
+    db.oneOrNone(`SELECT user_id, username, hash FROM users WHERE username = $1`, [username])
+    .then(userLoggingIn => {
+        if (userLoggingIn) {
+            bcrypt.compare(password, userLoggingIn.hash)
+            .then(passwordsMatch => {
+                if (passwordsMatch) {
+                    // login success
+                    const u = { name: username, id: userLoggingIn.user_id }
+                    const token = jwt.sign(u, process.env.JWT_SECRET, {
+                        expiresIn: 60 * 60 * 24 // expires in 24 hours
+                    });
+                    // send back a token
+                    res.json(token);
+                } 
+                else {
+                // login failure (bad password)
+                    res.status(400).json({
+                        success: false,
+                        message: 'Credentials invalid, please enter a valid username and password.'})
+                }
+            })
+            .catch(error => {
+                console.log(error);
+                // some other error (bcrypt)
+                res.status(500).json({
+                    success: false,
+                    message: 'Error logging in user.'})
+            });
+        } 
+        else {
+            // login failure (user not registered)
+            res.status(400).json({
+                success: false,
+                message: 'Credentials invalid, please enter a valid username and password.'})
+        }
+    })
+    .catch(error => {
+        console.log(error);
+        // some other error (pg-promise)
+        res.status(500).json({
+            success: false,
+            message: 'Error logging in user.'})
+    });
 })
 
 // register route - register a new user
 app.post("/register", (req,res) => {
-    // expects a user object { name: "username", password: "password" } in the body
-    const u = { name: req.body.name }
-    const token = jwt.sign(u, process.env.JWT_SECRET, {
-        expiresIn: 60 * 60 * 24 // expires in 24 hours
-     });
-    // send back a token
-    res.json(token);
+    // expects a user object { username: "username", password: "password" } in the body
+    let username = req.body.username;
+    let password = req.body.password;
+
+    db.any("SELECT user_id, username, hash FROM users")
+    .then(results => {
+        // verify that the username does not exist
+        let checkName = results.filter(item => item.username == username);
+        if (checkName.length != 0) {
+            res.status(400).json({
+                success: false,
+                message: 'Please choose a different username / password.'
+              });
+        } 
+        else {
+            // hash the password provided           
+            bcrypt.hash(password, SALT_ROUNDS)
+            .then(hash => {
+                db.one("INSERT INTO users(username, hash) VALUES($1, $2) RETURNING user_id;", [username, hash])
+                .then(id => {
+                    const u = { name: username, id: id }
+                    const token = jwt.sign(u, process.env.JWT_SECRET, {
+                        expiresIn: 60 * 60 * 24 // expires in 24 hours
+                    });
+                    // send back a token
+                    res.json(token);
+                })
+                .catch(err => {
+                    console.log(err);
+                    res.status(500).json({
+                        success: false,
+                        message: 'Error creating new user.'
+                    });
+                });
+            })
+            .catch(err => {
+                console.log(err);
+                res.status(500).json({
+                    success: false,
+                    message: 'Error creating new user.'
+                });
+            });
+        }
+    })
+    .catch(err => {
+        console.log(err);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating new user.'
+        });
+    }); 
 })
 
 // books route - returns all the books
